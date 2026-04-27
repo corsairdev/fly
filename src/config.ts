@@ -1,4 +1,10 @@
 import "dotenv/config";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Project root = one level up from src/
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // All constants live here. Edit this file to configure your instance.
@@ -10,9 +16,10 @@ import "dotenv/config";
 export const CONTROL_PORT = Number(process.env.CONTROL_PORT) || 8080;
 export const RUNTIME_PORT  = Number(process.env.RUNTIME_PORT)  || 3000;
 
-// Fly volume mount — persists installed plugins, node_modules, and corsair.ts
-export const WORKSPACE_DIR          = process.env.WORKSPACE_DIR          || "/workspace";
-export const WORKSPACE_DEFAULTS_DIR = process.env.WORKSPACE_DEFAULTS_DIR || "/workspace-defaults";
+// In production these are Fly volume paths (/workspace, /workspace-defaults).
+// Locally they default to directories inside the project root.
+export const WORKSPACE_DIR          = process.env.WORKSPACE_DIR          || path.join(PROJECT_ROOT, ".workspace");
+export const WORKSPACE_DEFAULTS_DIR = process.env.WORKSPACE_DEFAULTS_DIR || path.join(PROJECT_ROOT, "workspace-defaults");
 
 // ── URLs ──────────────────────────────────────────────────────────────────────
 
