@@ -89,7 +89,10 @@ app.post("/login", (req, res) => {
   if (password === APP_PASSWORD) {
     console.log(`[auth] login success from ${req.ip}`);
     req.session!.authenticated = true;
-    res.redirect((req.query.next as string) || "/plugins");
+    console.log(`[auth] session set: ${JSON.stringify(req.session)}`);
+    const dest = (req.query.next as string) || "/plugins";
+    console.log(`[auth] redirecting to ${dest}`);
+    res.redirect(dest);
   } else {
     console.warn(`[auth] login failed from ${req.ip} — wrong password`);
     res.setHeader("Content-Type", "text/html");
@@ -104,7 +107,7 @@ app.post("/logout", (req, res) => { req.session = null; res.redirect("/login"); 
 
 app.use((req, res, next) => {
   if (req.session?.authenticated) return next();
-  console.log(`[auth] unauthenticated request to ${req.path} — redirecting to login`);
+  console.log(`[auth] unauthenticated — session: ${JSON.stringify(req.session)}, cookie header: ${req.headers.cookie ?? "(none)"}`);
   res.redirect(`/login?next=${encodeURIComponent(req.path)}`);
 });
 
