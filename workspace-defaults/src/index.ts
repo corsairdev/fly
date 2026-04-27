@@ -305,7 +305,7 @@ app.get("/api/oauth/callback", async (req, res) => {
   const tokens = await tokenRes.json() as Record<string, unknown>;
 
   await ensureAccount(pluginId);
-  const accountKeys = (corsair.withTenant("default") as any)[pluginId]?.keys;
+  const accountKeys = (corsair as any)[pluginId]?.keys;
   if (tokens.access_token)  await accountKeys?.set_access_token(tokens.access_token as string);
   if (tokens.refresh_token) await accountKeys?.set_refresh_token(tokens.refresh_token as string);
   if (typeof tokens.expires_in === "number") {
