@@ -231,10 +231,9 @@ app.post("/oauth/token", (req, res) => {
 // GET /api/keys { plugins: ["gmail"] } → { gmail: { api_key: "..." } }
 app.post("/api/keys", requireAdminKey, async (req, res) => {
   const { plugins } = req.body as { plugins: string[] };
-  const tc = corsair.withTenant("default");
   const result: Record<string, Record<string, string>> = {};
   await Promise.all(plugins.map(async id => {
-    result[id] = await readKeys((tc as any)[id]?.keys).catch(() => ({}));
+    result[id] = await readKeys((corsair as any)[id]?.keys).catch(() => ({}));
   }));
   res.json(result);
 });
@@ -243,8 +242,7 @@ app.post("/api/keys", requireAdminKey, async (req, res) => {
 app.patch("/api/keys", requireAdminKey, async (req, res) => {
   const { plugin, key, value } = req.body as { plugin: string; key: string; value: string };
   await ensureAccount(plugin);
-  const tc = corsair.withTenant("default");
-  await setKey((tc as any)[plugin]?.keys, key, value);
+  await setKey((corsair as any)[plugin]?.keys, key, value);
   res.json({ ok: true });
 });
 
@@ -326,6 +324,16 @@ app.post("/api/setup", requireAdminKey, async (_req, res) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
+
+process.on("uncaughtException", (err) => {
+  console.error("[runtime] uncaughtException:", err);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[runtime] unhandledRejection:", reason);
+  process.exit(1);
+});
 
 app.listen(PORT, () => {
   console.log(`[runtime] Listening on port ${PORT}`);

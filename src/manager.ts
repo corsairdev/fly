@@ -26,23 +26,31 @@ export async function startRuntime(): Promise<void> {
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-  proc.stdout?.on("data", (chunk: Buffer) => {
-    process.stdout.write(`[runtime] ${chunk}`);
-    if (status === "starting") status = "running";
-  });
+  console.log(`[runtime] starting (pid ${proc.pid})`);
 
-  proc.stderr?.on("data", (chunk: Buffer) => {
-    process.stderr.write(`[runtime] ${chunk}`);
-    if (status === "starting") status = "running";
-  });
+  function pipeLines(stream: NodeJS.ReadableStream, write: (line: string) => void) {
+    let buf = "";
+    stream.on("data", (chunk: Buffer) => {
+      buf += chunk.toString();
+      const lines = buf.split("\n");
+      buf = lines.pop()!;
+      for (const line of lines) write(line);
+      if (status === "starting") status = "running";
+    });
+    stream.on("end", () => { if (buf) write(buf); });
+  }
+
+  pipeLines(proc.stdout!, line => process.stdout.write(`[runtime] ${line}\n`));
+  pipeLines(proc.stderr!, line => process.stderr.write(`[runtime] ${line}\n`));
 
   proc.on("exit", (code, signal) => {
     if (signal === "SIGTERM" || signal === "SIGKILL") {
       status = "stopped";
+      console.log(`[runtime] stopped (signal ${signal})`);
     } else {
       status = "crashed";
       lastError = `Exited with code ${code}`;
-      console.error(`[runtime] crashed — code ${code}`);
+      console.error(`[runtime] CRASHED — exit code ${code}`);
     }
     proc = null;
   });
