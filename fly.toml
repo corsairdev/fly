@@ -1,10 +1,10 @@
-# fly.toml app configuration file generated for corsair-fly on 2026-04-27T02:31:06Z
+# fly.toml app configuration file generated for corsair-fly on 2026-04-27T02:36:51Z
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
 app = 'corsair-fly'
-primary_region = 'ord'
+primary_region = 'ewr'
 
 [build]
   dockerfile = 'Dockerfile'
@@ -21,7 +21,7 @@ primary_region = 'ord'
   destination = '/workspace'
 
 [http_service]
-  internal_port = 8075
+  internal_port = 8080
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
