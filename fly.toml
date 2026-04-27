@@ -1,45 +1,41 @@
-app = "corsair"
-primary_region = "ord"
+# fly.toml app configuration file generated for corsair-fly on 2026-04-27T02:31:06Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'corsair-fly'
+primary_region = 'ord'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
+
+[env]
+  CONTROL_PORT = '8080'
+  NODE_ENV = 'production'
+  RUNTIME_PORT = '3000'
+  WORKSPACE_DEFAULTS_DIR = '/workspace-defaults'
+  WORKSPACE_DIR = '/workspace'
+
+[[mounts]]
+  source = 'corsair_workspace'
+  destination = '/workspace'
 
 [http_service]
-  internal_port = 8080
+  internal_port = 8075
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
 
   [[http_service.checks]]
-    grace_period = "15s"
-    interval = "15s"
-    method = "GET"
-    path = "/health"
-    timeout = "5s"
-
-[env]
-  NODE_ENV          = "production"
-  CONTROL_PORT      = "8080"
-  RUNTIME_PORT      = "3000"
-  WORKSPACE_DIR     = "/workspace"
-  WORKSPACE_DEFAULTS_DIR = "/workspace-defaults"
-
-# Persistent volume — stores installed plugins, node_modules, and generated corsair.ts.
-# Survives deploys and restarts. Only destroyed if you explicitly delete it.
-[mounts]
-  source      = "corsair_workspace"
-  destination = "/workspace"
-
-# Secrets (set once by deploy.sh, never committed):
-#   PUBLIC_URL      https://<your-app>.fly.dev
-#   APP_PASSWORD    your dashboard password
-#   SESSION_SECRET  openssl rand -hex 32
-#   DATABASE_URL    auto-set by fly postgres attach
-#   CORSAIR_KEK     openssl rand -base64 32
-#   CONTROL_API_KEY openssl rand -hex 32
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '15s'
+    method = 'GET'
+    path = '/health'
 
 [[vm]]
-  memory   = "512mb"
-  cpu_kind = "shared"
-  cpus     = 1
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512
