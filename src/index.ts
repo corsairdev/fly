@@ -23,6 +23,16 @@ const app = express();
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const ms = Date.now() - start;
+    console.log(`[http] ${req.method} ${req.path} → ${res.statusCode} (${ms}ms)`);
+  });
+  next();
+});
+
 app.use(cookieSession({
   name: "corsair",
   secret: SESSION_SECRET,
@@ -77,9 +87,11 @@ app.get("/login",  (_req, res) => { res.setHeader("Content-Type", "text/html"); 
 app.post("/login", (req, res) => {
   const { password } = req.body as { password: string };
   if (password === APP_PASSWORD) {
+    console.log(`[auth] login success from ${req.ip}`);
     req.session!.authenticated = true;
     res.redirect((req.query.next as string) || "/plugins");
   } else {
+    console.warn(`[auth] login failed from ${req.ip} — wrong password`);
     res.setHeader("Content-Type", "text/html");
     res.send(loginPage(true));
   }
@@ -92,6 +104,7 @@ app.post("/logout", (req, res) => { req.session = null; res.redirect("/login"); 
 
 app.use((req, res, next) => {
   if (req.session?.authenticated) return next();
+  console.log(`[auth] unauthenticated request to ${req.path} — redirecting to login`);
   res.redirect(`/login?next=${encodeURIComponent(req.path)}`);
 });
 
@@ -121,12 +134,15 @@ app.post("/api/plugins/add", async (req, res) => {
   await writeCorsairFile(config);
 
   const pkg = CATALOG_BY_ID[plugin]!.package;
+  console.log(`[plugins] installing ${pkg}`);
   try {
     await exec("npm", ["install", pkg], { cwd: process.env.WORKSPACE_DIR || "/workspace", timeout: 120_000 });
+    console.log(`[plugins] installed ${pkg}`);
   } catch (err: any) {
-    console.error(`[control] npm install failed: ${err.message}`);
+    console.error(`[plugins] npm install failed for ${pkg}: ${err.message}`);
   }
 
+  console.log(`[plugins] restarting runtime after adding ${plugin}`);
   void restartRuntime();
   res.redirect(`/credentials/${encodeURIComponent(plugin)}?installed=1`);
 });
@@ -142,10 +158,15 @@ app.post("/api/plugins/remove", async (req, res) => {
   await writeCorsairFile(config);
 
   const pkg = CATALOG_BY_ID[plugin]?.package ?? `@corsair-dev/${plugin}`;
+  console.log(`[plugins] uninstalling ${pkg}`);
   try {
     await exec("npm", ["uninstall", pkg], { cwd: process.env.WORKSPACE_DIR || "/workspace", timeout: 60_000 });
-  } catch {}
+    console.log(`[plugins] uninstalled ${pkg}`);
+  } catch (err: any) {
+    console.error(`[plugins] npm uninstall failed for ${pkg}: ${err.message}`);
+  }
 
+  console.log(`[plugins] restarting runtime after removing ${plugin}`);
   void restartRuntime();
   res.redirect("/plugins");
 });
@@ -330,7 +351,8 @@ app.use(
         // Give the runtime an internal auth key so it can trust admin-level calls.
         proxyReq.setHeader("x-admin-key", INTERNAL_KEY);
       },
-      error: (_err, _req, res) => {
+      error: (err, req, res) => {
+        console.error(`[proxy] runtime error on ${(req as express.Request).path}: ${(err as Error).message}`);
         (res as express.Response)
           .status(503)
           .json({ error: "Runtime is restarting — try again in a moment" });

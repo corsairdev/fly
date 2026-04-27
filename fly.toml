@@ -1,5 +1,5 @@
-app = "corsair"
-primary_region = "ord"
+app = "corsair-claude"
+primary_region = "dfw"
 
 [build]
   dockerfile = "Dockerfile"
