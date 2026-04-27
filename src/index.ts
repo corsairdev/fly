@@ -122,7 +122,13 @@ const runtimeProxy = createProxyMiddleware({
   },
 });
 
-app.use(["/mcp", "/.well-known", "/authorize", "/oauth"], runtimeProxy);
+const RUNTIME_BYPASS = ["/mcp", "/.well-known", "/authorize", "/oauth"];
+app.use((req, res, next) => {
+  if (RUNTIME_BYPASS.some(p => req.path === p || req.path.startsWith(p + "/"))) {
+    return runtimeProxy(req, res, next);
+  }
+  next();
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Require session for everything below
