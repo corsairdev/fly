@@ -1,5 +1,5 @@
 app = "corsair"
-primary_region = "iad"
+primary_region = "ord"
 
 [build]
   dockerfile = "Dockerfile"
