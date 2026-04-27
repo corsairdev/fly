@@ -1,4 +1,5 @@
 import type { PluginDef, PluginsConfig, PermissionMode } from "./codegen.js";
+import { renderArgsSnippet } from "@corsair-dev/ui";
 
 export function esc(s: unknown): string {
   return String(s ?? "")
@@ -310,12 +311,10 @@ ${keyRows}
 
 // Permissions page
 export function permissionsPage(
-  perms: { id: string; plugin: string; endpoint: string; args: string; expires_at: string }[],
+  perms: { id: string; plugin: string; endpoint: string; args: unknown; expires_at: string }[],
 ): string {
   const cards = perms.length
     ? perms.map(p => {
-        let args = p.args;
-        try { args = JSON.stringify(JSON.parse(p.args), null, 2); } catch {}
         return `<div class="card">
 <div class="card-row" style="margin-bottom:.75rem">
   <div>
@@ -324,7 +323,7 @@ export function permissionsPage(
   </div>
   <span class="badge badge-yellow">Pending</span>
 </div>
-<pre class="args">${esc(args)}</pre>
+<div style="margin-bottom:.75rem">${renderArgsSnippet(p.plugin, p.endpoint, p.args)}</div>
 <div style="display:flex;gap:.5rem">
   <form method="POST" action="/api/permissions/${esc(p.id)}/approve">
     <button class="btn btn-primary btn-sm">Approve</button>
@@ -339,55 +338,4 @@ export function permissionsPage(
   return layout("/permissions", "Permissions",
     cards + `<script>setTimeout(() => location.reload(), 10000)</script>`
   );
-}
-
-// Standalone approval page — no session needed, token is the auth
-export function approvePage(opts:
-  | { token: string; plugin: string; endpoint: string; args: string }
-  | { status: string }
-  | { expired: true }
-): string {
-  const base = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">`;
-
-  if ("expired" in opts) return base + `<title>Expired</title>
-<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc}
-.c{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:2rem;max-width:380px;text-align:center}p{color:#64748b;font-size:.875rem;margin-top:.5rem}</style>
-</head><body><div class="c"><strong>Expired</strong><p>This permission request has expired.</p></div></body></html>`;
-
-  if ("status" in opts) return base + `<title>Already resolved</title>
-<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc}
-.c{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:2rem;max-width:380px;text-align:center}p{color:#64748b;font-size:.875rem;margin-top:.5rem}</style>
-</head><body><div class="c"><strong>Already resolved</strong><p>This request was already ${esc(opts.status)}.</p></div></body></html>`;
-
-  const { token, plugin, endpoint, args } = opts;
-  return base + `<title>Approve action — Corsair</title>
-<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc;padding:1rem}
-.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:2rem;max-width:480px;width:100%;display:flex;flex-direction:column;gap:1.25rem}
-h1{font-size:1.125rem;font-weight:600}p{font-size:.875rem;color:#64748b;line-height:1.5}
-.label{font-size:.75rem;font-weight:500;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.25rem}
-pre{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.75rem;font-size:.75rem;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow-y:auto}
-.actions{display:flex;gap:.75rem}
-button{flex:1;padding:.5625rem 1rem;border-radius:8px;font-size:.875rem;font-weight:500;cursor:pointer;border:none}
-.approve{background:#1e293b;color:#fff}.approve:hover{background:#0f172a}
-.deny{background:#fff;color:#374151;border:1px solid #d1d5db}.deny:hover{background:#f9fafb}</style>
-</head><body><div class="card">
-<div><h1>Approve action?</h1><p style="margin-top:.375rem">An AI agent wants to perform the following action on your behalf.</p></div>
-<div><div class="label">Plugin</div><div style="font-weight:500;font-size:.875rem">${esc(plugin)}</div></div>
-<div><div class="label">Action</div><div style="font-weight:500;font-size:.875rem">${esc(endpoint)}</div></div>
-<div><div class="label">Arguments</div><pre>${esc(args)}</pre></div>
-<div class="actions">
-  <form method="POST" action="/approve/${esc(token)}/approve" style="flex:1"><button class="approve" style="width:100%">Approve</button></form>
-  <form method="POST" action="/approve/${esc(token)}/deny"    style="flex:1"><button class="deny"    style="width:100%">Deny</button></form>
-</div></div></body></html>`;
-}
-
-export function resolvedPage(action: "approve" | "deny"): string {
-  const color = action === "approve" ? "#166534" : "#991b1b";
-  const label = action === "approve" ? "Approved" : "Denied";
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${label} — Corsair</title>
-<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc}
-.c{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:2rem;max-width:380px;text-align:center}
-h1{font-size:1.125rem;font-weight:600;color:${color}}p{color:#64748b;font-size:.875rem;margin-top:.5rem;line-height:1.5}</style></head>
-<body><div class="c"><h1>${label}</h1><p>You can close this tab. The AI agent will continue automatically.</p></div></body></html>`;
 }

@@ -13,9 +13,11 @@ import { CATALOG_BY_ID, PLUGIN_CATALOG, readPluginsConfig, writeCorsairFile, wri
 import { initDb, pool } from "./db.js";
 import { getRuntimeStatus, restartRuntime, startRuntime } from "./manager.js";
 import { initWorkspace } from "./workspace.js";
+import { corsairPermissions } from "@corsair-dev/ui";
+import type { PermissionLike } from "@corsair-dev/ui";
 import {
-  approvePage, connectPage, credentialsPage,
-  esc, loginPage, permissionsPage, pluginsPage, resolvedPage,
+  connectPage, credentialsPage,
+  esc, loginPage, permissionsPage, pluginsPage,
 } from "./ui.js";
 
 const exec = promisify(execFile);
@@ -80,30 +82,31 @@ app.get("/health", (_req, res) => res.json({ ok: true, runtime: getRuntimeStatus
 
 app.get("/approve/:token", async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT id, plugin, endpoint, args, status, expires_at FROM corsair_permissions WHERE token = $1`,
+    `SELECT id, plugin, endpoint, args, status, token, created_at, expires_at FROM corsair_permissions WHERE token = $1`,
     [req.params.token],
   );
   const p = rows[0];
   if (!p) { res.status(404).send("Not found"); return; }
-  if (p.status !== "pending") { res.setHeader("Content-Type", "text/html"); res.send(approvePage({ status: p.status })); return; }
-  if (new Date(p.expires_at) < new Date()) { res.setHeader("Content-Type", "text/html"); res.send(approvePage({ expired: true })); return; }
-  let args = p.args;
-  try { args = JSON.stringify(JSON.parse(p.args), null, 2); } catch {}
+  const status = p.status === "pending" && new Date(p.expires_at) < new Date() ? "expired" : p.status;
+  const html = corsairPermissions(
+    { ...p, status, tenant_id: "default", updated_at: p.created_at } as PermissionLike,
+    (perm) => ({ method: "POST" as const, url: `/approve/${perm.token}/approve` }),
+    (perm) => ({ method: "POST" as const, url: `/approve/${perm.token}/deny` }),
+  );
   res.setHeader("Content-Type", "text/html");
-  res.send(approvePage({ token: req.params.token, plugin: p.plugin, endpoint: p.endpoint, args }));
+  res.send(html);
 });
 
 async function doApproval(token: string, action: "approve" | "deny", res: express.Response): Promise<void> {
   const { rows } = await pool.query(`SELECT id, status FROM corsair_permissions WHERE token = $1`, [token]);
   const p = rows[0];
-  if (!p) { res.status(404).send("Not found"); return; }
-  if (p.status !== "pending") { res.redirect(`/approve/${token}`); return; }
+  if (!p) { res.status(404).json({ message: "Not found" }); return; }
+  if (p.status !== "pending") { res.json({ message: `This request was already ${p.status}.` }); return; }
   await pool.query(
     `UPDATE corsair_permissions SET status = $1, updated_at = NOW() WHERE id = $2`,
     [action === "approve" ? "approved" : "denied", p.id],
   );
-  res.setHeader("Content-Type", "text/html");
-  res.send(resolvedPage(action));
+  res.json({ message: action === "approve" ? "Approved!" : "Declined." });
 }
 
 app.post("/approve/:token/approve", (req, res) => void doApproval(req.params.token, "approve", res));
