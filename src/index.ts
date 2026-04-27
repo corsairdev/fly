@@ -276,11 +276,19 @@ app.get("/connect", async (req, res) => {
   const { rows } = await pool.query(
     `SELECT id, name, client_id, key_prefix, created_at, last_used_at FROM mcp_api_keys ORDER BY created_at DESC`,
   );
+  const keys = rows.map(r => ({
+    id: r.id,
+    name: r.name,
+    clientId: r.client_id,
+    keyPrefix: r.key_prefix,
+    createdAt: r.created_at,
+    lastUsedAt: r.last_used_at,
+  }));
   const newKey = req.session?.newKey as { clientId: string; clientSecret: string } | undefined;
   if (req.session?.newKey) delete req.session!.newKey;
 
   res.setHeader("Content-Type", "text/html");
-  res.send(connectPage(PUBLIC_URL, rows, newKey));
+  res.send(connectPage(PUBLIC_URL, keys, newKey));
 });
 
 app.post("/api/mcp-keys", async (req, res) => {
