@@ -89,7 +89,7 @@ import { pool } from "./db.js";
 const PUBLIC_URL = process.env.PUBLIC_URL ?? "http://localhost:8080";
 
 export const corsair = createCorsair({
-  multiTenancy: true,
+  multiTenancy: false,
   database: pool,
   kek: process.env.CORSAIR_KEK || "",
   approval: {

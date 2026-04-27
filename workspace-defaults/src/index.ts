@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createBaseMcpServer, createMcpRouter } from "@corsair-dev/mcp";
 import express, { type NextFunction, type Request, type Response } from "express";
+import { setupCorsair } from "corsair";
 import { CORSAIR_INTERNAL, encryptDEK, generateDEK } from "corsair/core";
 import { createCorsairOrm } from "corsair/orm";
 import { corsair } from "./corsair.js";
@@ -142,8 +143,7 @@ app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.use("/mcp", verifyMcpAuth);
 app.use("/mcp", createMcpRouter(() => {
-  const tc = corsair.withTenant("default");
-  return createBaseMcpServer({ corsair: tc });
+  return createBaseMcpServer({ corsair });
 }));
 
 // ── OAuth discovery ───────────────────────────────────────────────────────────
@@ -320,30 +320,18 @@ app.get("/api/oauth/callback", async (req, res) => {
 // ── Sync DB rows for all plugins × default tenant ─────────────────────────────
 
 app.post("/api/setup", requireAdminKey, async (_req, res) => {
-  const internal = (corsair as any)[CORSAIR_INTERNAL] as { plugins: any[]; database: any; kek: string };
-  const orm = createCorsairOrm(internal.database);
-  for (const plugin of internal.plugins ?? []) {
-    let integration = await orm.integrations.findByName(plugin.id);
-    if (!integration) {
-      const dek = await encryptDEK(generateDEK(), internal.kek);
-      integration = await orm.integrations.create({ name: plugin.id, config: {}, dek });
-    }
-    const existing = await orm.accounts.findOne({ tenant_id: "default", integration_id: integration.id });
-    if (!existing) {
-      const dek = await encryptDEK(generateDEK(), internal.kek);
-      await orm.accounts.create({ tenant_id: "default", integration_id: integration.id, config: {}, dek });
-    }
-  }
-  res.json({ ok: true });
+  const logs = await setupCorsair(corsair);
+  for (const line of logs) console.log(line);
+  res.json({ ok: true, logs });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
   console.log(`[runtime] Listening on port ${PORT}`);
-  // Sync DB rows for current plugins on startup.
-  fetch(`http://localhost:${PORT}/api/setup`, {
-    method: "POST",
-    headers: { "x-admin-key": ADMIN_KEY },
-  }).catch(() => {});
+  setupCorsair(corsair).then(logs => {
+    for (const line of logs) console.log(line);
+  }).catch(err => {
+    console.error(`[runtime] setupCorsair failed: ${err.message}`);
+  });
 });
