@@ -22,9 +22,6 @@ const exec = promisify(execFile);
 const app = express();
 app.set("trust proxy", 1);
 
-app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
-
 app.use((req, res, next) => {
   const start = Date.now();
   res.on("finish", () => {
@@ -33,6 +30,38 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Proxy OAuth/MCP routes to runtime — BEFORE body parsers so the stream
+// isn't consumed, and before session auth since the runtime handles its own auth
+// ─────────────────────────────────────────────────────────────────────────────
+
+const runtimeProxy = createProxyMiddleware({
+  target: `http://localhost:${RUNTIME_PORT}`,
+  changeOrigin: true,
+  on: {
+    proxyReq: (proxyReq) => {
+      proxyReq.setHeader("x-admin-key", INTERNAL_KEY);
+    },
+    error: (err, req, res) => {
+      console.error(`[proxy] runtime error on ${(req as express.Request).path}: ${(err as Error).message}`);
+      (res as express.Response)
+        .status(503)
+        .json({ error: "Runtime is restarting — try again in a moment" });
+    },
+  },
+});
+
+const RUNTIME_BYPASS = ["/mcp", "/.well-known", "/authorize", "/oauth"];
+app.use((req, res, next) => {
+  if (RUNTIME_BYPASS.some(p => req.path === p || req.path.startsWith(p + "/"))) {
+    return runtimeProxy(req, res, next);
+  }
+  next();
+});
+
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 
 app.use(cookieSession({
   name: "corsair",
@@ -101,34 +130,6 @@ app.post("/login", (req, res) => {
   }
 });
 app.post("/logout", (req, res) => { req.session = null; res.redirect("/login"); });
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Proxy OAuth/MCP routes to runtime — no session needed, runtime handles auth
-// ─────────────────────────────────────────────────────────────────────────────
-
-const runtimeProxy = createProxyMiddleware({
-  target: `http://localhost:${RUNTIME_PORT}`,
-  changeOrigin: true,
-  on: {
-    proxyReq: (proxyReq) => {
-      proxyReq.setHeader("x-admin-key", INTERNAL_KEY);
-    },
-    error: (err, req, res) => {
-      console.error(`[proxy] runtime error on ${(req as express.Request).path}: ${(err as Error).message}`);
-      (res as express.Response)
-        .status(503)
-        .json({ error: "Runtime is restarting — try again in a moment" });
-    },
-  },
-});
-
-const RUNTIME_BYPASS = ["/mcp", "/.well-known", "/authorize", "/oauth"];
-app.use((req, res, next) => {
-  if (RUNTIME_BYPASS.some(p => req.path === p || req.path.startsWith(p + "/"))) {
-    return runtimeProxy(req, res, next);
-  }
-  next();
-});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Require session for everything below
