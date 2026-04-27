@@ -103,6 +103,28 @@ app.post("/login", (req, res) => {
 app.post("/logout", (req, res) => { req.session = null; res.redirect("/login"); });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Proxy OAuth/MCP routes to runtime — no session needed, runtime handles auth
+// ─────────────────────────────────────────────────────────────────────────────
+
+const runtimeProxy = createProxyMiddleware({
+  target: `http://localhost:${RUNTIME_PORT}`,
+  changeOrigin: true,
+  on: {
+    proxyReq: (proxyReq) => {
+      proxyReq.setHeader("x-admin-key", INTERNAL_KEY);
+    },
+    error: (err, req, res) => {
+      console.error(`[proxy] runtime error on ${(req as express.Request).path}: ${(err as Error).message}`);
+      (res as express.Response)
+        .status(503)
+        .json({ error: "Runtime is restarting — try again in a moment" });
+    },
+  },
+});
+
+app.use(["/mcp", "/.well-known", "/authorize", "/oauth"], runtimeProxy);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Require session for everything below
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -350,8 +372,7 @@ app.post("/api/permissions/:id/deny", async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Proxy everything else to the runtime
-// (MCP, OAuth discovery, /authorize, /oauth/token, /api/keys, /api/oauth/*)
+// Proxy remaining session-protected runtime routes (/api/keys, /api/oauth/*)
 // ─────────────────────────────────────────────────────────────────────────────
 
 app.use(
